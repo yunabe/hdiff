@@ -1,0 +1,29 @@
+<html>
+  <head>
+    <meta http-equiv="Content-Style-Type" content="text/css">
+    <link type="text/css" rel="stylesheet" href="styles.css"></link>
+    <script type="text/javascript" src="script.js"></script>
+  </head>
+  <body>
+    <!-- table-top and hook-sel are necesasry to handle keydown (N, P) events. -->
+    <div style="position:relative;" id="table-top">
+    <span id="hook-sel" style="display:none;"></span>
+    <div class="code" style="margin-top: 1.3em; display: table; margin-left: auto; margin-right: auto;">
+      <table border="0" cellpadding="0" cellspacing="0" id="thecode"
+             ondblclick="M_handleTableDblClick(event)" width="100%"
+             ontouchstart="M_handleTableTouchStart(event)"
+             ontouchend="M_handleTableTouchEnd(event)">
+        <tr><th>OLD</th><th>NEW</th></tr>
+        {{rows}}
+        <tr><th>OLD</th><th>NEW</th></tr>
+      </table>
+    </div>
+    <script language="JavaScript" type="text/javascript">
+      <!--
+      document.onkeydown = M_keyDown;
+      var hookState = new M_HookState(window);
+      hookState.updateHooks();
+      // -->
+    </script>
+  </body>
+</html>

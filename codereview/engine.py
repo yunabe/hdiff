@@ -15,6 +15,7 @@
 """Diff rendering in HTML for Rietveld."""
 
 # Python imports
+import os
 import re
 import cgi
 import difflib
