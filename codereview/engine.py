@@ -21,16 +21,7 @@ import difflib
 import logging
 import urlparse
 
-# AppEngine imports
-from google.appengine.api import urlfetch
-from google.appengine.api import users
-from google.appengine.ext import db
-
-# Django imports
-from django.template import loader, RequestContext
-
 # Local imports
-import models
 import patching
 import intra_region_diff
 
@@ -605,7 +596,7 @@ def _RenderDiffInternal(old_buff, new_buff, ndigits, tag, frag_list,
             intra_region_diff.COLOR_SCHEME['new']['match'])
   oend = intra_region_diff.END_TAG
   nend = oend
-  user = users.get_current_user()
+  user = os.getlogin()
 
   for i in xrange(len(old_buff)):
     tg = tag
