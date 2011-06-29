@@ -1,2 +1,4 @@
 *codereview, static
-Based on rietvelt (http://code.google.com/p/rietveld/) revision 768.
+Copied from rietvelt (http://code.google.com/p/rietveld/) revision 768.
+codereview/engine.py was modified a little.
+https://github.com/yunabe/html-diff/commit/c3cd511524a806ad6ca015ad15d852026209ec74
