@@ -2168,7 +2168,6 @@ function M_jumpToHrefOrChangelist(elementId) {
  * @return false if the event was handled
  */
 function M_keyDown(evt) {
-  alert('M_keyDown');
   return M_keyDownCommon(evt, function(key) {
     if (key == 'N') {
       // next diff

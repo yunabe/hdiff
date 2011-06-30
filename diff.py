@@ -8,6 +8,20 @@ from codereview import engine
 from codereview import patching
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), 'template/diff.html')
+SCRIPT_JS_FILE = os.path.join(os.path.dirname(__file__), 'static/script.js')
+STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__), 'static/styles.css')
+
+INLINE_SCRIPT = """
+<script type="text/javascript">
+<!--
+%s
+// -->
+</script>""".strip()
+
+INLINE_CSS = """
+<style type="text/css">
+%s
+</style>""".strip()
 
 
 def fillTemplate(template, params):
@@ -51,6 +65,8 @@ def main():
 
   params = {
     'rows': '\n'.join(rows),
+    'script.js': INLINE_SCRIPT % file(SCRIPT_JS_FILE).read(),
+    'styles.css': INLINE_CSS % file(STYLES_CSS_FILE).read(),
   }
 
   template = file(TEMPLATE_FILE).read()
