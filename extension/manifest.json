@@ -1,0 +1,11 @@
+{
+  "name": "Web socket test",
+  "version": "0.0.1",
+  "description": "Web socket test.",
+  "background_page": "background.html",
+  "permissions": [
+    "tabs",
+    "notifications"
+    /* TODO: Confirm that we don't really need to add a web socket server.*/
+  ]
+}
