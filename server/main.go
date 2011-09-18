@@ -38,7 +38,7 @@ func HandleWebSocket(ws *websocket.Conn) {
 	  select  {
 		case message, ok := <- ch:
 			if ok {
-				fmt.Println("Recived", message, "from the browser.")
+				fmt.Println("Received", message, "from the browser.")
 			} else {
 				fmt.Println("The web socket connection was closed by peer.")
 				closed = true
