@@ -76,7 +76,7 @@ function onmessage(e) {
     var cmd = obj['cmd'];
     var url = 'http://' + addr + obj['url'];
     if (cmd == 'show') {
-        chrome.tabs.create({'url': url, 'selected': false});
+        chrome.tabs.create({'url': url, 'selected': true});
     } else if (cmd == 'close') {
         chrome.tabs.getAllInWindow(null, function(tabs) {
             for (var i = 0; i < tabs.length; ++i) {

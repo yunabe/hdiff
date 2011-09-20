@@ -1,0 +1,16 @@
+package command;
+
+message Request {
+  message File {
+    optional string name = 1;
+    optional bytes data = 2;
+  }
+
+  repeated File page = 2;
+
+  repeated File additional_file = 3;
+}
+
+message Response {
+  optional string name = 1;
+}
