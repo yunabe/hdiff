@@ -37,21 +37,14 @@ def filterNewLine(lines):
   return result
 
 
-def main():
-  if len(sys.argv) != 3:
-    print 'Usage python diff.py file0 file1'
-    sys.exit(1)
-
-  rc, output = commands.getstatusoutput(
-    'diff -u "%s" "%s"' % (sys.argv[1], sys.argv[2]))
-
+def createHtmlDiff(base, live):
+  rc, output = commands.getstatusoutput('diff -u "%s" "%s"' % (base, live))
   if rc != 256:
-    print output
-    sys.exit(1)
+    return None, output
 
   chunks = patching.ParsePatchToChunks(filterNewLine(output.split('\n')))
-  old_lines = filterNewLine(file(sys.argv[1]).readlines())
-  new_lines_len = len(file(sys.argv[2]).readlines())
+  old_lines = filterNewLine(file(base).readlines())
+  new_lines_len = len(file(live).readlines())
 
   column_width = 80
   # Makes context big to avoid collapsing unchanged parts.
@@ -70,7 +63,20 @@ def main():
   }
 
   template = file(TEMPLATE_FILE).read()
-  print  fillTemplate(template, params)
+  return fillTemplate(template, params), None
+
+
+def main():
+  if len(sys.argv) != 3:
+    print 'Usage python diff.py file0 file1'
+    sys.exit(1)
+
+  html, err = createHtmlDiff(sys.argv[1], sys.argv[2])
+  if err:
+    print >> sys.stderr, err
+    sys.exit(1)
+  else:
+    print html
 
 
 if __name__ == '__main__':
