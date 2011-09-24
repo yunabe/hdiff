@@ -7,23 +7,33 @@ import StringIO
 import sys
 import tempfile
 
-from diff import createHtmlDiff
+from codereview.engine import RenderUnifiedTableRows
+from codereview.patching import ParsePatchToLines
+from diff import createHtmlDiff, getDiffLines
 from server.command_pb2 import Request
 from server.command_pb2 import Response
 from server import command
 
+STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__),
+                               '../static/styles.css')
 
 kListPageTemplate = '''
 <html>
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css">
+%s
+</style>
 <body>
-  <ul>
-    %s
-  </ul>
+  %s
 </body>
 </html>
 '''
 
-kListTemplate = '<li><a href="%s">%s</li>'
+kListTemplate = '''
+<div class="code" style="margin-top: 1.3em; display: table; margin-left: auto; margin-right: auto;">
+  <a href="%s" >%s</a>
+  <table style="padding:5px;background-color:white" cellpadding="0" cellspaceing="0">%s</table>
+</div>'''
 
 
 def GitDiffNameOnly():
@@ -54,11 +64,16 @@ def StoreBaseFiles(tmpdir, files):
   return True
 
 
-def CreateFileListPageHtml(files):
+def CreateFileListPageHtml(tmpdir, files):
   w = StringIO.StringIO()
   for i, filename in enumerate(files):
-    w.write(kListTemplate % ('diff%d.html' % i, cgi.escape(filename)))
-  return kListPageTemplate % w.getvalue()
+    lines, _ = getDiffLines(os.path.join(tmpdir, 'base%d' % i), filename)
+    parsed_lines = ParsePatchToLines(lines)
+    rows = RenderUnifiedTableRows(None, parsed_lines)
+    w.write(kListTemplate % ('diff%d.html' % i,
+                             cgi.escape(filename),
+                             '\n'.join(rows)))
+  return kListPageTemplate % (file(STYLES_CSS_FILE).read(), w.getvalue())
 
 
 def ConstructRequest(tmpdir, files):
@@ -66,7 +81,7 @@ def ConstructRequest(tmpdir, files):
   if len(files) > 1:
     page = req.page.add()
     page.name = 'list.html'
-    page.data = CreateFileListPageHtml(files)
+    page.data = CreateFileListPageHtml(tmpdir, files)
 
   for i, filename in enumerate(files):
     html, err = createHtmlDiff(os.path.join(tmpdir, 'base%d' % i), filename)

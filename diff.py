@@ -36,13 +36,22 @@ def filterNewLine(lines):
     result.append(line.rstrip('\r\n'))
   return result
 
+def getDiffLines(base, live):
+  """Runs diff and returns lines of output.
 
-def createHtmlDiff(base, live):
+  The result is equivalent to pathch.lines in rietvelt.
+  """
   rc, output = commands.getstatusoutput('diff -u "%s" "%s"' % (base, live))
   if rc != 256:
     return None, output
+  return filterNewLine(output.split('\n')), None
 
-  chunks = patching.ParsePatchToChunks(filterNewLine(output.split('\n')))
+
+def createHtmlDiff(base, live):
+  diff_lines, err = getDiffLines(base, live)
+  if err:
+    return None, err
+  chunks = patching.ParsePatchToChunks(diff_lines)
   old_lines = filterNewLine(file(base).readlines())
   new_lines_len = len(file(live).readlines())
 
