@@ -727,7 +727,10 @@ def RenderUnifiedTableRows(request, parsed_lines):
   Returns:
     A list of html table rows.
   """
-  old_dict, new_dict = _GetComments(request)
+  old_dict = {}
+  new_dict = {}
+  if request:
+    old_dict, new_dict = _GetComments(request)
 
   rows = []
   for old_line_no, new_line_no, line_text in parsed_lines:
