@@ -13,4 +13,4 @@ os.environ['PYTHONPATH'] = path + root
 os.execlp('python',
           'python',
           os.path.join(dir, 'webdiff.py'),
-          *sys.argv)
+          *sys.argv[1:])

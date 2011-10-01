@@ -24,20 +24,28 @@ kListPageTemplate = '''
 %s
 </style>
 <body>
-  %s
+  <div style="display: table;margin-left:auto;margin-right:auto;">
+    %s
+  </div>
 </body>
 </html>
 '''
 
 kListTemplate = '''
-<div class="code" style="margin-top: 1.3em; display: table; margin-left: auto; margin-right: auto;">
+<div class="code" style="margin-top: 1.3em; display: table;">
   <a href="%s" >%s</a>
   <table style="padding:5px;background-color:white" cellpadding="0" cellspaceing="0">%s</table>
 </div>'''
 
 
-def GitDiffNameOnly():
-  rc, output = commands.getstatusoutput('git diff --name-only')
+def GitDiffNameOnly(extra_args):
+  rc, output = commands.getstatusoutput(' '.join(
+      ['git',
+       '--no-pager',
+       'diff',
+       '--name-only',
+       '--no-ext-diff',
+       ] + extra_args))
   if rc != 0:
     return None, output
   else:
@@ -104,11 +112,12 @@ def main():
     print >> sys.stderr, err
     sys.exit(1)
 
-  os.chdir(root)
-  files, err = GitDiffNameOnly()
+  files, err = GitDiffNameOnly(sys.argv[1:])
   if err:
     print >> sys.stderr, "Error:", err
     return
+  # Names of files returned by git diff are based on root dir.
+  os.chdir(root)
   if len(files) == 0:
     return
 
