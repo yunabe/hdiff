@@ -47,18 +47,11 @@ def getDiffLines(base, live):
   return filterNewLine(output.split('\n')), None
 
 
-def createHtmlDiff(base, live):
-  diff_lines, err = getDiffLines(base, live)
-  if err:
-    return None, err
-  chunks = patching.ParsePatchToChunks(diff_lines)
-  old_lines = filterNewLine(file(base).readlines())
-  new_lines_len = len(file(live).readlines())
-
+def createHtmlDiffFromBaseAndDiff(base_lines, chunks):
   column_width = 80
   # Makes context big to avoid collapsing unchanged parts.
-  context = len(old_lines) + new_lines_len
-  rows = list(engine.RenderDiffTableRows(None, old_lines, chunks, None,
+  context = len(base_lines) + len(chunks)
+  rows = list(engine.RenderDiffTableRows(None, base_lines, chunks, None,
                                          colwidth=column_width,
                                          context=context))
   if rows[-1] == None:
@@ -73,6 +66,16 @@ def createHtmlDiff(base, live):
 
   template = file(TEMPLATE_FILE).read()
   return fillTemplate(template, params), None
+
+
+def createHtmlDiff(base, live):
+  diff_lines, err = getDiffLines(base, live)
+  if err:
+    return None, err
+  chunks = patching.ParsePatchToChunks(diff_lines)
+  old_lines = filterNewLine(file(base).readlines())
+  new_lines_len = len(file(live).readlines())
+  return createHtmlDiffFromBaseAndDiff(old_lines, chunks)
 
 
 def main():
