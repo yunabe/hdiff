@@ -47,7 +47,8 @@ def getDiffLines(base, live):
   return filterNewLine(output.split('\n')), None
 
 
-def createHtmlDiffFromBaseAndDiff(base_lines, chunks):
+def createHtmlDiffFromBaseAndDiff(base_lines, diff_lines):
+  chunks = patching.ParsePatchToChunks(diff_lines)
   column_width = 80
   # Makes context big to avoid collapsing unchanged parts.
   context = len(base_lines) + len(chunks)
@@ -72,10 +73,9 @@ def createHtmlDiff(base, live):
   diff_lines, err = getDiffLines(base, live)
   if err:
     return None, err
-  chunks = patching.ParsePatchToChunks(diff_lines)
   old_lines = filterNewLine(file(base).readlines())
   new_lines_len = len(file(live).readlines())
-  return createHtmlDiffFromBaseAndDiff(old_lines, chunks)
+  return createHtmlDiffFromBaseAndDiff(old_lines, diff_lines)
 
 
 def main():
