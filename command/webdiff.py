@@ -89,6 +89,7 @@ def CreateFileListPageHtml(tmpdir, files):
                              '\n'.join(rows)))
   return kListPageTemplate % (file(STYLES_CSS_FILE).read(), w.getvalue())
 
+
 def CreateFileListPageHtmlFromDiffs(diffs, filenames):
   w = StringIO.StringIO()
   for i, diff in enumerate(diffs):
@@ -104,7 +105,7 @@ def ConstructRequest(tmpdir, files):
   if len(files) > 1:
     page = req.page.add()
     page.name = 'list.html'
-    page.data = CreateFileListPageHtmlFromDiffs(tmpdir, files)
+    page.data = CreateFileListPageHtml(tmpdir, files)
 
   for i, filename in enumerate(files):
     html, err = createHtmlDiff(os.path.join(tmpdir, 'base%d' % i), filename)
