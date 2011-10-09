@@ -2,6 +2,7 @@ import cgi
 import commands
 import optparse
 import os
+import re
 import shutil
 import socket
 import StringIO
@@ -66,6 +67,41 @@ def GetGitRootDirectory():
   else:
     return output, None
 
+
+def IsValidGitRevision(revision):
+  rc, _ = commands.getstatusoutput(
+    'git --no-pager show "%s" -- --name-only' % revision)
+  return rc == 0
+
+
+def MaybeParseGitRevision(s):
+  delimiter_pattern = re.compile('\.\\.+')
+  delimiters = delimiter_pattern.findall(s)
+  revs = delimiter_pattern.split(s)
+
+  if len(revs) != 1 and len(revs) != 2:
+    return None
+  if len(delimiters) > 1:
+    return None
+
+  left = None
+  right = None
+  delimiter = None
+  if len(delimiters) == 1:
+    delimiter = delimiters[0]
+
+  for i, rev in enumerate(revs):
+    if not rev:
+      continue
+    if not IsValidGitRevision(rev):
+      return None
+    if i == 0:
+      left = rev
+    else:
+      right = rev
+
+  return left, right, delimiter
+  
 
 def StoreBaseFiles(tmpdir, files):
   for i, filename in enumerate(files):
@@ -160,6 +196,10 @@ def SplitMercurialDiff(inputs):
   return results
 
 
+def SplitGitDiff(inputs):
+  return SplitMercurialDiff(inputs)
+
+
 class MercurialDiffOptionParser(optparse.OptionParser):
   def __init__(self):
     optparse.OptionParser.__init__(self)
@@ -170,7 +210,125 @@ def ParseMercurialDiffLine(line):
   filename = line.split()[-1]
 
 
+def get_git_revisions(argv):
+  argv = argv[1:]
+  has_separator = False
+  files = []
+  for i in xrange(len(argv)):
+    if argv[i] == '--':
+      files = argv[i+1:]
+      argv = argv[:i]
+      has_separator = True
+      break
+
+  if len(argv) == 0:
+    return None, None, None, files, None
+
+  left = None
+  right = None
+  for i in xrange(len(argv)):
+    is_last = (i + 1 == len(argv))
+    parsed = MaybeParseGitRevision(argv[i])
+    if not parsed:
+      if has_separator:
+        return None, None, None, None, 'bad reivision: %s' % argv[i]
+      else:
+        return left, right, None, argv[i:] + files, None
+    l, r, delim = parsed
+    if delim == '...':
+      return None, None, None, None, '<commit>...<commit> is not supported.'
+    elif delim == '..':
+      if not has_separator or is_last:
+        return l, r, '..', argv[i + 1:] + files, None
+      else:
+        return None, None, None, None, 'Too many args before --'
+    else:
+      assert l
+      assert not r
+      assert not delim
+      if not left:
+        left = l
+      else:
+        right = l
+        if not has_separator or is_last:
+          return left, right, None, argv[i + 1:], None
+        else:
+          return None, None, None, None, 'Too many args before --'
+  return left, right, None, files, None
+
+
 def git_main(root):
+  left, right, delimiter, files, err = get_git_revisions(sys.argv)
+  if err:
+    print >> sys.stderr, err
+    sys.exit(1)
+
+  if not left and right:
+    left = 'HEAD'
+
+  diffcmd = 'git --no-pager diff'
+
+  if left or right:
+    diffcmd += ' '
+    if left:
+      diffcmd += left
+    if delimiter:
+      diffcmd += delimiter
+    else:
+      diffcmd += ' '
+    if right:
+      diffcmd += right
+  if files:
+    diffcmd += ' -- ' + ' '.join(files)
+
+  rc, output = commands.getstatusoutput(diffcmd)
+  if rc != 0:
+    print >> sys.stderr, output
+    sys.exit(1)
+
+  if not output.strip():
+    return
+
+  split = SplitGitDiff(splitOutput(output))
+
+  req = Request()
+  filenames = []
+  diffs = []
+  for i, (_, lines) in enumerate(split):
+    left_file, right_file = ExtractFileNamesFromDiff(lines)
+    diffs.append(lines)
+    filenames.append(right_file)
+    if left_file:
+      hgcat = 'git show %s:%s' % (left if left else '', left_file)
+      rc, output = commands.getstatusoutput(hgcat)
+      if rc != 0:
+        raise Exception, 'Failed to run "%s": %s' % (hgcat, output)
+      base_lines = splitOutput(output)
+    else:
+      base_lines = []
+    
+    html, err = createHtmlDiffFromBaseAndDiff(base_lines, lines)
+    if err:
+      raise Exception, 'Failed to create html diff: %s' % err
+
+    page = req.additional_file.add()
+    page.name = 'diff%d.html' % i
+    page.data = html
+
+  page = req.page.add()
+  page.name = 'list.html'
+  page.data = CreateFileListPageHtmlFromDiffs(diffs, filenames)
+
+  s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+  s.connect('/tmp/sock')
+  try:
+    command.SendRequest(s, req)
+    command.ReceiveResponse(s)
+  finally:
+    s.close()
+
+
+def git_main_old(root):
   files, err = GitDiffNameOnly(sys.argv[1:])
   if err:
     print >> sys.stderr, "Error:", err
