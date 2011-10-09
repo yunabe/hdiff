@@ -45,21 +45,6 @@ def splitOutput(output):
   return map(lambda s: s.rstrip('\r'), output.split('\n'))
 
 
-def GitDiffNameOnly(extra_args):
-  rc, output = commands.getstatusoutput(' '.join(
-      ['git',
-       '--no-pager',
-       'diff',
-       '--name-only',
-       '--no-ext-diff',
-       ] + extra_args))
-  if rc != 0:
-    return None, output
-  else:
-    return filter(lambda s: len(s) > 0,
-                  map(lambda s: s.rstrip('\r'), output.split('\n'))), None
-
-
 def GetGitRootDirectory():
   rc, output = commands.getstatusoutput('git rev-parse --show-toplevel')
   if rc != 0:
@@ -103,29 +88,6 @@ def MaybeParseGitRevision(s):
   return left, right, delimiter
   
 
-def StoreBaseFiles(tmpdir, files):
-  for i, filename in enumerate(files):
-    tmpfile = os.path.join(tmpdir, 'base%d' % i)
-    os.environ['WEBDIFF_TMPFILE'] = tmpfile
-    rc, output = commands.getstatusoutput('git difftool "%s"' % filename)
-    if rc != 0:
-      print >> sys.stderr, output
-      return False
-  return True
-
-
-def CreateFileListPageHtml(tmpdir, files):
-  w = StringIO.StringIO()
-  for i, filename in enumerate(files):
-    lines, _ = getDiffLines(os.path.join(tmpdir, 'base%d' % i), filename)
-    parsed_lines = ParsePatchToLines(lines)
-    rows = RenderUnifiedTableRows(None, parsed_lines)
-    w.write(kListTemplate % ('diff%d.html' % i,
-                             cgi.escape(filename),
-                             '\n'.join(rows)))
-  return kListPageTemplate % (file(STYLES_CSS_FILE).read(), w.getvalue())
-
-
 def CreateFileListPageHtmlFromDiffs(diffs, filenames):
   w = StringIO.StringIO()
   for i, diff in enumerate(diffs):
@@ -135,27 +97,6 @@ def CreateFileListPageHtmlFromDiffs(diffs, filenames):
                              cgi.escape(filenames[i]),
                              '\n'.join(rows)))
   return kListPageTemplate % (file(STYLES_CSS_FILE).read(), w.getvalue())
-
-def ConstructRequest(tmpdir, files):
-  req = Request()
-  if len(files) > 1:
-    page = req.page.add()
-    page.name = 'list.html'
-    page.data = CreateFileListPageHtml(tmpdir, files)
-
-  for i, filename in enumerate(files):
-    html, err = createHtmlDiff(os.path.join(tmpdir, 'base%d' % i), filename)
-    if err:
-      print >> sys.stderr, err
-      continue
-
-    if len(files) == 1:
-      page = req.page.add()
-    else:
-      page = req.additional_file.add()
-    page.name = 'diff%d.html' % i
-    page.data = html
-  return req
 
 
 def GetMercurialRootDirectory():
@@ -204,10 +145,6 @@ class MercurialDiffOptionParser(optparse.OptionParser):
   def __init__(self):
     optparse.OptionParser.__init__(self)
     self.add_option('-r', '--rev', default=[], dest='revision', action='append')
-
-
-def ParseMercurialDiffLine(line):
-  filename = line.split()[-1]
 
 
 def get_git_revisions(argv):
@@ -326,40 +263,6 @@ def git_main(root):
     command.ReceiveResponse(s)
   finally:
     s.close()
-
-
-def git_main_old(root):
-  files, err = GitDiffNameOnly(sys.argv[1:])
-  if err:
-    print >> sys.stderr, "Error:", err
-    return
-  # Names of files returned by git diff are based on root dir.
-  os.chdir(root)
-  if len(files) == 0:
-    return
-
-  if len(files) > 1:
-    files.reverse()
-    print 'Sorry, multiple diff is not suported.'
-    print 'Shwoing diff of %s' % files[0]
-
-  try:
-    tmpdir = tempfile.mkdtemp()
-    StoreBaseFiles(tmpdir, files)
-    req = ConstructRequest(tmpdir, files)
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    s.connect('/tmp/sock')
-    try:
-      command.SendRequest(s, req)
-      command.ReceiveResponse(s)
-    finally:
-      s.close()
-  finally:
-    try:
-      shutil.rmtree(tmpdir) # delete directory
-    except OSError, e:
-      if e.errno != 2:
-        raise
 
 
 def GetHgParents():
