@@ -227,42 +227,11 @@ def git_main(root):
     return
 
   split = SplitGitDiff(splitOutput(output))
+  showDiffInBrowser(root, left, split, create_gitshow)
 
-  req = Request()
-  filenames = []
-  diffs = []
-  for i, (_, lines) in enumerate(split):
-    left_file, right_file = ExtractFileNamesFromDiff(lines)
-    diffs.append(lines)
-    filenames.append(right_file)
-    if left_file:
-      hgcat = 'git show %s:%s' % (left if left else '', left_file)
-      rc, output = commands.getstatusoutput(hgcat)
-      if rc != 0:
-        raise Exception, 'Failed to run "%s": %s' % (hgcat, output)
-      base_lines = splitOutput(output)
-    else:
-      base_lines = []
-    
-    html, err = createHtmlDiffFromBaseAndDiff(base_lines, lines)
-    if err:
-      raise Exception, 'Failed to create html diff: %s' % err
 
-    page = req.additional_file.add()
-    page.name = 'diff%d.html' % i
-    page.data = html
-
-  page = req.page.add()
-  page.name = 'list.html'
-  page.data = CreateFileListPageHtmlFromDiffs(diffs, filenames)
-
-  s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-  s.connect('/tmp/sock')
-  try:
-    command.SendRequest(s, req)
-    command.ReceiveResponse(s)
-  finally:
-    s.close()
+def create_gitshow(root, left_rev, left_file):
+  return 'git show %s:%s' % (left_rev if left_rev else '', left_file)
 
 
 def GetHgParents():
@@ -347,7 +316,15 @@ def hg_main(root):
   if rc != 0:
     print >> sys.stderr, output
   split = SplitMercurialDiff(splitOutput(output))
+  showDiffInBrowser(root, left_rev, split, create_hgcat)
 
+
+def create_hgcat(root, left_rev, left_file):
+  return 'hg cat -r %s "%s"' % (left_rev,
+                                os.path.join(root, left_file))
+
+
+def showDiffInBrowser(root, left_rev, split, catcmd_factory):
   req = Request()
   filenames = []
   diffs = []
@@ -356,11 +333,10 @@ def hg_main(root):
     diffs.append(lines)
     filenames.append(right_file)
     if left_file:
-      hgcat = 'hg cat -r %s "%s"' % (left_rev,
-                                     os.path.join(root, left_file))
-      rc, output = commands.getstatusoutput(hgcat)
+      catcmd = catcmd_factory(root, left_rev, left_file)
+      rc, output = commands.getstatusoutput(catcmd)
       if rc != 0:
-        raise Exception, 'Failed to run "%s": %s' % (hgcat, output)
+        raise Exception, 'Failed to run "%s": %s' % (catcmd, output)
       base_lines = splitOutput(output)
     else:
       base_lines = []
