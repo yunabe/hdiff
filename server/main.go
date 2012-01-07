@@ -2,17 +2,17 @@ package main
 
 import (
 	"bufio"
-	"exp/regexp"
+	"regexp"
 	"fmt"
-	"http"
+	"net/http"
 	"io"
-	"json"
+	"encoding/json"
 	"log"
 	"net"
-	"rand"
+	"math/rand"
 	"strconv"
 	"time"
-	"url"
+	"net/url"
 	"websocket"
 
 	"./command"
@@ -81,7 +81,7 @@ func main() {
 	commandChannel = make(chan interface{})
 
 	go listenAndServeCommand()
-	rand.Seed(time.LocalTime().Nanoseconds())
+	rand.Seed(int64(time.Now().Nanosecond()))
 	http.HandleFunc("/", NotFoundServer)
 	http.Handle("/ws", websocket.Handler(HandleWebSocket))
 	commandManager.root = "/cmd"
@@ -89,7 +89,7 @@ func main() {
 	http.Handle(commandManager.root + "/", &commandManager)
 	err := http.ListenAndServe(":8888", nil)
 	if err != nil {
-		log.Fatal("Failed to listen:", err.String())
+		log.Fatal("Failed to listen:", err)
 	}
 }
 
@@ -111,7 +111,7 @@ func (manager *CommandManager) Register(cmd Command) {
 
 func (manager *CommandManager) Unregister(cmd Command) {
 	fmt.Println("Unregister cmd: id =", cmd.Id())
-	manager.dict[cmd.Id()] = nil, false
+	delete(manager.dict, cmd.Id())
 }
 
 func (manager *CommandManager) ServeHTTP(w http.ResponseWriter,
@@ -123,7 +123,7 @@ func (manager *CommandManager) ServeHTTP(w http.ResponseWriter,
 		fmt.Println("The wrong pattern:", r.URL.String())
 		return
 	}
-	id, err := strconv.Atoui(matches[1])
+	id, err := strconv.ParseUint(matches[1], 10, 64)
 	if err != nil {
 		fmt.Println("Failed to parse ID:", matches[1])
 		return

@@ -4,12 +4,11 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 
 	"goprotobuf.googlecode.com/hg/proto"
 )
 
-func ReceiveRequest(reader io.Reader) (*Request, os.Error) {
+func ReceiveRequest(reader io.Reader) (*Request, error) {
 	req := new(Request)
 	if err := receiveProtoBuf(reader, req); err != nil {
 		return nil, err
@@ -17,7 +16,7 @@ func ReceiveRequest(reader io.Reader) (*Request, os.Error) {
 	return req, nil
 }
 
-func ReceiveResponse(reader io.Reader) (*Response, os.Error) {
+func ReceiveResponse(reader io.Reader) (*Response, error) {
 	res := new(Response)
 	if err := receiveProtoBuf(reader, res); err != nil {
 		return nil, err
@@ -25,7 +24,7 @@ func ReceiveResponse(reader io.Reader) (*Response, os.Error) {
 	return res, nil
 }
 
-func receiveProtoBuf(reader io.Reader, pb interface{}) os.Error {
+func receiveProtoBuf(reader io.Reader, pb interface{}) error {
 	fmt.Println("ReceiveRequest...")
 	var size uint64;
 	if err := binary.Read(reader, binary.LittleEndian, &size); err != nil {
@@ -39,17 +38,17 @@ func receiveProtoBuf(reader io.Reader, pb interface{}) os.Error {
 	return proto.Unmarshal(buf, pb)
 }
 
-func SendRequest(writer io.Writer, req *Request) os.Error {
+func SendRequest(writer io.Writer, req *Request) error {
 	return sendProtobuf(writer, req)
 }
 
-func SendResponse(writer io.Writer, res *Response) os.Error {
+func SendResponse(writer io.Writer, res *Response) error {
 	return sendProtobuf(writer, res)
 }
 
-func sendProtobuf(writer io.Writer, pb interface{}) os.Error {
+func sendProtobuf(writer io.Writer, pb interface{}) error {
 	var data []byte
-	var err os.Error
+	var err error
 	if data, err = proto.Marshal(pb); err != nil {
 		return err
 	}

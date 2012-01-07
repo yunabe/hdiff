@@ -18,4 +18,4 @@ command.$(O): command.go command.pb.go
 	$(GC) -o command.$(O) command.go command.pb.go
 
 clean:
-	rm -f *_pb2.py *.pb.go *.$(O) main
+	rm -f *_pb2.py *.pyc *.pb.go *.$(O) main
