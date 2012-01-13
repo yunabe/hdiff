@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"time"
 	"net/url"
+	"net/http/httputil"
 	"websocket"
 
 	"./command"
@@ -161,10 +162,24 @@ func handleCommandRequst(conn *net.UnixConn) {
 			fmt.Println("Failed to receive a request:", err)
 			break
 		}
-		fmt.Println("createShowPageCommand(rand.Uint32(), req)")
-		cmd := createShowPageCommand(rand.Uint32(), req)
-		cmd.Register()
-		cmds = append(cmds, cmd)
+		var mode command.Request_Mode
+		if req.Mode == nil {
+			mode = command.Default_Request_Mode
+		} else {
+			mode = *req.Mode
+		}
+		switch mode {
+		case command.Request_PROXY:
+			fmt.Println("Proxy!")
+			fmt.Printf("proxy_addr: %s\n", *req.ProxyAddr)
+			cmd := createProxyCommand(req)
+			cmd.Register()
+			cmds = append(cmds, cmd)
+		default:
+			cmd := createShowPageCommand(rand.Uint32(), req)
+			cmd.Register()
+			cmds = append(cmds, cmd)
+		}
 	}
 	for _, cmd := range cmds {
 		cmd.Dispose()
@@ -187,6 +202,52 @@ func createFileHandler(file *command.Request_File) *FileHandler {
 	handler := new(FileHandler)
 	handler.file = file
 	return handler
+}
+
+func createProxyCommand(req *command.Request) *proxyCommand {
+	proxy := NewResverseProxy(*req.ProxyAddr)
+	return &proxyCommand{id: rand.Uint32(), proxy: proxy}
+}
+
+type proxyCommand struct {
+	id uint32
+	proxy *httputil.ReverseProxy
+}
+
+func (cmd *proxyCommand) Id() uint32 {
+	return cmd.id
+}
+
+func (cmd *proxyCommand) Register() {
+	commandManager.Register(cmd)
+
+	message := make(map[string]interface{})
+	message["cmd"] = "show"
+	message["url"] = fmt.Sprintf("/cmd/%d/index.html", cmd.id)
+	commandChannel <- message
+}
+
+func (cmd *proxyCommand) Dispose() {
+	commandManager.Unregister(cmd)
+
+	message := make(map[string]interface{})
+	message["cmd"] = "close"
+	message["url"] = fmt.Sprintf("/cmd/%d/", cmd.id)
+	commandChannel <- message
+}
+
+func NewResverseProxy(proxyAddr string) *httputil.ReverseProxy {
+	target := url.URL{
+	    Scheme: "http",
+	    Host: proxyAddr,
+	}
+	return httputil.NewSingleHostReverseProxy(&target)
+}
+
+
+
+func (cmd *proxyCommand) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	cmd.proxy.ServeHTTP(w, r)
 }
 
 type showPageCommand struct {
