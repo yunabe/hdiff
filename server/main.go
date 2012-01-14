@@ -223,7 +223,7 @@ func (cmd *proxyCommand) Register() {
 
 	message := make(map[string]interface{})
 	message["cmd"] = "show"
-	message["url"] = fmt.Sprintf("/cmd/%d/index.html", cmd.id)
+	message["url"] = fmt.Sprintf("/cmd/%d/", cmd.id)
 	commandChannel <- message
 }
 

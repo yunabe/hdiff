@@ -5,9 +5,13 @@ import os
 import re
 import shutil
 import socket
+import threading
 import StringIO
 import sys
 import tempfile
+import urllib
+import urlparse
+from wsgiref.simple_server import make_server
 
 from codereview.engine import RenderUnifiedTableRows
 from codereview.patching import ParsePatchToLines
@@ -38,6 +42,14 @@ kListTemplate = '''
   <a href="%s" >%s</a>
   <table style="padding:5px;background-color:white" cellpadding="0" cellspaceing="0">%s</table>
 </div>'''
+
+
+class DiffData(object):
+  def __init__(self, root, left_rev, split, catcmd_factory):
+    self.root = root
+    self.left_rev = left_rev
+    self.split = split
+    self.catcmd_factory = catcmd_factory
 
 
 def splitOutput(output):
@@ -91,9 +103,10 @@ def MaybeParseGitRevision(s):
 def CreateFileListPageHtmlFromDiffs(diffs, filenames):
   w = StringIO.StringIO()
   for i, diff in enumerate(diffs):
+    link_url = '?' + urllib.urlencode({'file': filenames[i]})
     parsed_lines = ParsePatchToLines(diff)
     rows = RenderUnifiedTableRows(None, parsed_lines)
-    w.write(kListTemplate % ('diff%d.html' % i,
+    w.write(kListTemplate % (link_url,
                              cgi.escape(filenames[i]),
                              '\n'.join(rows)))
   return kListPageTemplate % (file(STYLES_CSS_FILE).read(), w.getvalue())
@@ -194,11 +207,10 @@ def get_git_revisions(argv):
   return left, right, None, files, None
 
 
-def git_main(root):
-  left, right, delimiter, files, err = get_git_revisions(sys.argv)
+def git_diff(root, argv):
+  left, right, delimiter, files, err = get_git_revisions(argv)
   if err:
-    print >> sys.stderr, err
-    sys.exit(1)
+    return None, err
 
   if not left and right:
     left = 'HEAD'
@@ -220,14 +232,13 @@ def git_main(root):
 
   rc, output = commands.getstatusoutput(diffcmd)
   if rc != 0:
-    print >> sys.stderr, output
-    sys.exit(1)
+    return None, output
 
   if not output.strip():
-    return
+    return None, 'No diff found.'
 
   split = SplitGitDiff(splitOutput(output))
-  showDiffInBrowser(root, left, split, create_gitshow)
+  return DiffData(root, left, split, create_gitshow), None
 
 
 def create_gitshow(root, left_rev, left_file):
@@ -292,19 +303,18 @@ def ExtractFileNamesFromDiff(lines):
   return left, right
 
 
-def hg_main(root):
+def hg_diff(root, argv):
   parser = MercurialDiffOptionParser()
-  params, args = parser.parse_args()
+  params, args = parser.parse_args(argv[1:])
   if len(params.revision) > 2:
-    print >> sys.stderr, 'abort: too many revisions specified'
-    sys.exit(1)
+    return None, 'too many revisions specified'
 
   if len(params.revision) > 0:
     left_rev = params.revision[0]
   else:
     left_rev, _, error = GetHgParents()
     if error:
-      raise Exception, error
+      return None, error
 
   diffcmd = 'hg diff --nodates --git'
   for revision in params.revision:
@@ -314,9 +324,9 @@ def hg_main(root):
     
   rc, output = commands.getstatusoutput(diffcmd)
   if rc != 0:
-    print >> sys.stderr, output
+    return None, output
   split = SplitMercurialDiff(splitOutput(output))
-  showDiffInBrowser(root, left_rev, split, create_hgcat)
+  return DiffData(root, left_rev, split, create_hgcat), None
 
 
 def create_hgcat(root, left_rev, left_file):
@@ -324,16 +334,15 @@ def create_hgcat(root, left_rev, left_file):
                                 os.path.join(root, left_file))
 
 
-def showDiffInBrowser(root, left_rev, split, catcmd_factory):
-  req = Request()
-  filenames = []
-  diffs = []
-  for i, (_, lines) in enumerate(split):
+def createFileDiffHtml(diff_data, filename):
+  for i, (_, lines) in enumerate(diff_data.split):
     left_file, right_file = ExtractFileNamesFromDiff(lines)
-    diffs.append(lines)
-    filenames.append(right_file)
+    if right_file != filename:
+      continue
+
     if left_file:
-      catcmd = catcmd_factory(root, left_rev, left_file)
+      catcmd = diff_data.catcmd_factory(
+        diff_data.root, diff_data.left_rev, left_file)
       rc, output = commands.getstatusoutput(catcmd)
       if rc != 0:
         raise Exception, 'Failed to run "%s": %s' % (catcmd, output)
@@ -343,18 +352,62 @@ def showDiffInBrowser(root, left_rev, split, catcmd_factory):
     
     html, err = createHtmlDiffFromBaseAndDiff(base_lines, lines)
     if err:
-      raise Exception, 'Failed to create html diff: %s' % err
+      return 'Failed to create html diff: %s' % err
+    else:
+      return html
 
-    page = req.additional_file.add()
-    page.name = 'diff%d.html' % i
-    page.data = html
+    
+def createFileListPageHtml(diff_data):
+  filenames = []
+  diffs = []
+  for i, (_, lines) in enumerate(diff_data.split):
+    _, right_file = ExtractFileNamesFromDiff(lines)
+    diffs.append(lines)
+    filenames.append(right_file)
 
-  page = req.page.add()
-  page.name = 'list.html'
-  page.data = CreateFileListPageHtmlFromDiffs(diffs, filenames)
+  return CreateFileListPageHtmlFromDiffs(diffs, filenames)
 
+
+class WebDiffHandler(object):
+  def __init__(self, argv, mode, root):
+    self.argv = argv
+    self.mode = mode
+    self.root = root
+
+  def __call__(self, environ, start_response):
+    if self.mode == 'git':
+      diff_data, error = git_diff(self.root, self.argv)
+    else:
+      diff_data, error = hg_diff(self.root, self.argv)
+    
+    if error:
+      start_response('200 OK', [('Content-Type', 'text/plain')])
+      return [error]
+
+    qs = urlparse.parse_qs(environ['QUERY_STRING'])
+    filename = qs.get('file', [''])[0]
+    start_response('200 OK', [('Content-Type', 'text/html')])
+    if not filename:
+      return [createFileListPageHtml(diff_data)]
+    else:
+      return [createFileDiffHtml(diff_data, filename)]
+
+
+class ServerThread(threading.Thread):
+  def __init__(self, server):
+    threading.Thread.__init__(self)
+    self.server = server
+
+  def run(self):
+    self.server.serve_forever()
+
+
+def SendProxyRequest(addr):
+  req = Request()
   s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
   s.connect('/tmp/sock')
+  req.mode = Request.PROXY
+  req.proxy_addr = addr
   try:
     command.SendRequest(s, req)
     command.ReceiveResponse(s)
@@ -363,15 +416,43 @@ def showDiffInBrowser(root, left_rev, split, catcmd_factory):
 
 
 def main():
-  root, err = GetGitRootDirectory()
-  if not err:
-    return git_main(root)
+  mode = ''
+  if not mode:
+    root, err = GetGitRootDirectory()
+    if not err:
+      mode = 'git'
+  if not mode:
+    root, err = GetMercurialRootDirectory()
+    if not err:
+      mode = 'hg'
 
-  root, err = GetMercurialRootDirectory()
-  if not err:
-    return hg_main(root)
-  print >> sys.stderr, 'There is no Git or Mercurial repository here!'
-  sys.exit(1)
+  if not mode:
+    print >> sys.stderr, 'There is no Git or Mercurial repository here!'
+    sys.exit(1)
+
+  if mode == 'git':
+    diff_data, error = git_diff(root, sys.argv)
+  else:
+    diff_data, error = hg_diff(root, sys.argv)
+
+  if error:
+    print >> sys.stderr, mode + ':', error
+    sys.exit(1)
+
+  server = make_server('', 0, WebDiffHandler(sys.argv, mode, root))
+  port = server.socket.getsockname()[1]
+  server_thread = ServerThread(server)
+  server_thread.start()
+
+  try:
+    pass
+    SendProxyRequest('localhost:%d' % port)
+  finally:
+    server.server_close()
+    server_thread.join()
+
+  showDiffInBrowser(diff_data.root, diff_data.left_rev,
+                    diff_data.split, diff_data.catcmd_factory)
 
 
 if __name__ == '__main__':
