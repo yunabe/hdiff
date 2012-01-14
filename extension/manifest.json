@@ -5,7 +5,7 @@
   "background_page": "background.html",
   "permissions": [
     "tabs",
-    "notifications"
-    /* TODO: Confirm that we don't really need to add a web socket server.*/
+    "notifications",
+    "ws://*/ws"
   ]
 }
