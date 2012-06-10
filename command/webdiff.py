@@ -68,7 +68,7 @@ def IsValidGitRevision(revision):
 
 
 def MaybeParseGitRevision(s):
-  delimiter_pattern = re.compile('\.\\.+')
+  delimiter_pattern = re.compile('\\.\\.+')
   delimiters = delimiter_pattern.findall(s)
   revs = delimiter_pattern.split(s)
 
@@ -128,10 +128,11 @@ def RunMercurialDiff(args):
                   map(lambda s: s.rstrip('\r'), output.split('\n'))), None
 
 
-def SplitMercurialDiff(inputs):
+def SplitMercurialDiff(mode, inputs):
   if len(inputs) == 0:
     return []
-  if not inputs[0].startswith('diff '):
+  if not (mode == 'diff' or inputs[0].startswith('diff ')):
+    # 'diff' does not output 'diff xxx' line when it compares files.
     return None, ('The first line of mercurial\'s diff must '
                   'start with \'diff \'.')
 
@@ -141,13 +142,18 @@ def SplitMercurialDiff(inputs):
     if line.startswith('diff '):
       diffs = []
       results.append((line, diffs))
+    elif diffs is None:
+      # diff does not output "diff ..." line
+      diffs = []
+      results.append(('unused?', diffs))
+      diffs.append(line)
     else:
       diffs.append(line)
   return results
 
 
 def SplitGitDiff(inputs):
-  return SplitMercurialDiff(inputs)
+  return SplitMercurialDiff('git', inputs)
 
 
 class MercurialDiffOptionParser(optparse.OptionParser):
@@ -261,14 +267,11 @@ def ExtractFileNameFromFilenameLine(line):
   split = line.split('\t')
   if len(split) == 1:
     return line
-  maybe_filename = '\t'.join(split[:-1])
-  if ' ' in maybe_filename:
-    return maybe_filename
-  else:
-    return maybe_filename + '\t'
+  # Remove time stamp from output of "diff".
+  return '\t'.join(split[:-1])
   
 
-def ExtractFileNamesFromDiff(lines):
+def ExtractFileNamesFromDiff(mode, lines):
   left_found = False
   left = None
   right = None
@@ -276,7 +279,9 @@ def ExtractFileNamesFromDiff(lines):
     if line.startswith('--- '):
       path = ExtractFileNameFromFilenameLine(line)
       left_found = True
-      if path.startswith('a/'):
+      if mode == 'diff':
+        left = path
+      elif path.startswith('a/'):
         left = path[len('a/'):]
       elif not path.startswith('/dev/null'):
         raise Exception, 'Invalid line: %s' % line
@@ -284,7 +289,9 @@ def ExtractFileNamesFromDiff(lines):
       if not left_found:
         raise Exception, '--- line must come before +++ line'
       path = ExtractFileNameFromFilenameLine(line)
-      if path.startswith('b/'):
+      if mode == 'diff':
+        right = path
+      elif path.startswith('b/'):
         right = path[len('b/'):]
       elif not path.startswith('/dev/null'):
         raise Exception, 'Invalid line: %s' % line
@@ -320,7 +327,7 @@ def hg_diff(root, argv):
   rc, output = commands.getstatusoutput(diffcmd)
   if rc != 0:
     return None, output
-  split = SplitMercurialDiff(splitOutput(output))
+  split = SplitMercurialDiff('hg', splitOutput(output))
   return DiffData(root, left_rev, split, create_hgcat), None
 
 
@@ -328,10 +335,23 @@ def create_hgcat(root, left_rev, left_file):
   return 'hg cat -r %s "%s"' % (left_rev,
                                 os.path.join(root, left_file))
 
+def diff_diff(root, argv):
+  diffcmd = 'diff -u ' + ' '.join(argv)
+  rc, output = commands.getstatusoutput(diffcmd)
+  if rc != 256:  # TODO: Why 256?
+    return None, output
+  split = SplitMercurialDiff('diff', splitOutput(output))
+  return DiffData(root, 'dummy', split, create_cat), None
 
-def createFileDiffHtml(diff_data, filename):
+
+def create_cat(root, left_rev, left_file):
+  print 'left_file', `left_file`
+  return 'cat "%s"' % os.path.join(root, left_file)
+
+
+def createFileDiffHtml(mode, diff_data, filename):
   for i, (_, lines) in enumerate(diff_data.split):
-    left_file, right_file = ExtractFileNamesFromDiff(lines)
+    left_file, right_file = ExtractFileNamesFromDiff(mode, lines)
     if right_file != filename:
       continue
 
@@ -352,11 +372,11 @@ def createFileDiffHtml(diff_data, filename):
       return html
 
     
-def createFileListPageHtml(diff_data):
+def createFileListPageHtml(mode, diff_data):
   filenames = []
   diffs = []
   for i, (_, lines) in enumerate(diff_data.split):
-    _, right_file = ExtractFileNamesFromDiff(lines)
+    _, right_file = ExtractFileNamesFromDiff(mode, lines)
     diffs.append(lines)
     filenames.append(right_file)
 
@@ -372,8 +392,11 @@ class WebDiffHandler(object):
   def __call__(self, environ, start_response):
     if self.mode == 'git':
       diff_data, error = git_diff(self.root, self.argv)
-    else:
+    elif self.mode == 'hg':
       diff_data, error = hg_diff(self.root, self.argv)
+    else:
+      # mode == 'diff'
+      diff_data, error = diff_diff(self.root, self.argv)
     
     if error:
       start_response('200 OK', [('Content-Type', 'text/plain')])
@@ -383,9 +406,9 @@ class WebDiffHandler(object):
     filename = qs.get('file', [''])[0]
     start_response('200 OK', [('Content-Type', 'text/html')])
     if not filename:
-      return [createFileListPageHtml(diff_data)]
+      return [createFileListPageHtml(self.mode, diff_data)]
     else:
-      return [createFileDiffHtml(diff_data, filename)]
+      return [createFileDiffHtml(self.mode, diff_data, filename)]
 
 
 class ServerThread(threading.Thread):
@@ -439,8 +462,7 @@ def main():
     sys.exit(1)
 
   if mode == 'diff':
-    print >> sys.stderr, '"webdiff diff" is not supported yet :P'
-    sys.exit(1)
+    root = os.getcwd()
   elif mode == 'git':
     root, err = GetGitRootDirectory()
     if err:
