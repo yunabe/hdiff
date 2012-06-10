@@ -157,7 +157,6 @@ class MercurialDiffOptionParser(optparse.OptionParser):
 
 
 def get_git_revisions(argv):
-  argv = argv[1:]
   has_separator = False
   files = []
   for i in xrange(len(argv)):
@@ -301,7 +300,7 @@ def ExtractFileNamesFromDiff(lines):
 
 def hg_diff(root, argv):
   parser = MercurialDiffOptionParser()
-  params, args = parser.parse_args(argv[1:])
+  params, args = parser.parse_args(argv)
   if len(params.revision) > 2:
     return None, 'too many revisions specified'
 
@@ -430,21 +429,30 @@ def main():
     print >> sys.stderr, 'Failed to load command_port from .htmlfwdrc'
     command_port = 9999
 
-  mode = ''
-  if not mode:
-    root, err = GetGitRootDirectory()
-    if not err:
-      mode = 'git'
-  if not mode:
-    root, err = GetMercurialRootDirectory()
-    if not err:
-      mode = 'hg'
-
-  if not mode:
-    print >> sys.stderr, 'There is no Git or Mercurial repository here!'
+  if len(sys.argv) < 2:
+    print >> sys.stderr, 'hg diff|git|hg'
+    sys.exit(1)
+  mode = sys.argv[1]
+  if mode not in ('diff', 'git', 'hg'):
+    print >> sys.stderr, 'Unknown command:', mode
+    print >> sys.stderr, 'hg diff|git|hg'
     sys.exit(1)
 
-  server = make_server('', 0, WebDiffHandler(sys.argv, mode, root))
+  if mode == 'diff':
+    print >> sys.stderr, '"webdiff diff" is not supported yet :P'
+    sys.exit(1)
+  elif mode == 'git':
+    root, err = GetGitRootDirectory()
+    if err:
+      print >> sys.stderr, 'Not a git repository'
+      sys.exit(1)
+  elif mode == 'hg':
+    root, err = GetMercurialRootDirectory()
+    if err:
+      print >> sys.stderr, 'Not a mercurial repository'
+      sys.exit(1)
+
+  server = make_server('', 0, WebDiffHandler(sys.argv[2:], mode, root))
   port = server.socket.getsockname()[1]
   server_thread = ServerThread(server)
   server_thread.start()
