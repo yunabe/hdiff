@@ -1,7 +1,0 @@
-Prerequisite:
-
-go version: weekly.2011-12-22
-goprotobuf version: go.weekly.2011-12-06
-
-Please read the following README for details.
-https://github.com/yunabe/practice/blob/master/golang/README
