@@ -464,9 +464,6 @@ def main():
     server.server_close()
     server_thread.join()
 
-  showDiffInBrowser(diff_data.root, diff_data.left_rev,
-                    diff_data.split, diff_data.catcmd_factory)
-
 
 if __name__ == '__main__':
   main()
