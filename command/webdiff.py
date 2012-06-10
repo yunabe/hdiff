@@ -444,15 +444,6 @@ def main():
     print >> sys.stderr, 'There is no Git or Mercurial repository here!'
     sys.exit(1)
 
-  if mode == 'git':
-    diff_data, error = git_diff(root, sys.argv)
-  else:
-    diff_data, error = hg_diff(root, sys.argv)
-
-  if error:
-    print >> sys.stderr, mode + ':', error
-    sys.exit(1)
-
   server = make_server('', 0, WebDiffHandler(sys.argv, mode, root))
   port = server.socket.getsockname()[1]
   server_thread = ServerThread(server)
