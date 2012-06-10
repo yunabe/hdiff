@@ -1,14 +1,13 @@
 import cgi
 import commands
+import json
 import optparse
 import os
 import re
-import shutil
 import socket
 import threading
 import StringIO
 import sys
-import tempfile
 import urllib
 import urlparse
 from wsgiref.simple_server import make_server
@@ -16,9 +15,6 @@ from wsgiref.simple_server import make_server
 from codereview.engine import RenderUnifiedTableRows
 from codereview.patching import ParsePatchToLines
 from diff import createHtmlDiff, getDiffLines, createHtmlDiffFromBaseAndDiff
-from server.command_pb2 import Request
-from server.command_pb2 import Response
-from server import command
 
 STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__),
                                '../static/styles.css')
@@ -402,20 +398,38 @@ class ServerThread(threading.Thread):
     self.server.serve_forever()
 
 
-def SendProxyRequest(addr):
-  req = Request()
-  s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-  s.connect('/tmp/sock')
-  req.mode = Request.PROXY
-  req.proxy_addr = addr
+def SendProxyRequest(command_port, addr):
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.connect(('localhost', command_port))
+  req = json.dumps({'host': addr,
+                    'openurl': '/'})
+  sock.send(req)
   try:
-    command.SendRequest(s, req)
-    command.ReceiveResponse(s)
+    sock.recv(4096)
   finally:
-    s.close()
+    sock.close()
+
+
+def load_command_port():
+  rcpath = os.path.join(os.path.expanduser('~'), '.htmlfwdrc')
+  try:
+    setting = file(rcpath, 'r').read()
+  except Exception, e:
+    print e
+    return -1
+  m = re.compile('command_port=(\d+)').search(setting)
+  if m:
+    return int(m.group(1))
+  else:
+    return -1
 
 
 def main():
+  command_port = load_command_port()
+  if command_port == -1:
+    print >> sys.stderr, 'Failed to load command_port from .htmlfwdrc'
+    command_port = 9999
+
   mode = ''
   if not mode:
     root, err = GetGitRootDirectory()
@@ -445,8 +459,7 @@ def main():
   server_thread.start()
 
   try:
-    pass
-    SendProxyRequest('localhost:%d' % port)
+    SendProxyRequest(command_port, 'localhost:%d' % port)
   finally:
     server.server_close()
     server_thread.join()
