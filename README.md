@@ -3,6 +3,19 @@
 ### Install htmlfwd
 Follow [the instruction of htmlfwd](https://github.com/yunabe/htmlfwd/blob/master/README.md)
 
+## Usage
+### Show git diff
+
+    webdiff git
+
+### Show mercurial diff
+
+    webdiff hg
+
+### Show diff of files or directories
+
+    webdiff diff
+
 ## Notes
 Files in codereview and static are copied from
 [rietvelt](http://code.google.com/p/rietveld/) revision 840f9bb917ba.
