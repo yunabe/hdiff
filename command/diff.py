@@ -7,9 +7,12 @@ import commands
 from codereview import engine
 from codereview import patching
 
-TEMPLATE_FILE = os.path.join(os.path.dirname(__file__), 'template/diff.html')
-SCRIPT_JS_FILE = os.path.join(os.path.dirname(__file__), 'static/script.js')
-STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__), 'static/styles.css')
+TEMPLATE_FILE = os.path.join(os.path.dirname(__file__),
+                             '../template/diff.html')
+SCRIPT_JS_FILE = os.path.join(os.path.dirname(__file__),
+                              '../static/script.js')
+STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__),
+                               '../static/styles.css')
 
 INLINE_SCRIPT = """
 <script type="text/javascript">

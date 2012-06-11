@@ -14,7 +14,7 @@ from wsgiref.simple_server import make_server
 
 from codereview.engine import RenderUnifiedTableRows
 from codereview.patching import ParsePatchToLines
-from diff import createHtmlDiffFromBaseAndDiff
+from command.diff import createHtmlDiffFromBaseAndDiff
 
 STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__),
                                '../static/styles.css')
