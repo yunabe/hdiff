@@ -204,22 +204,25 @@ def git_diff(root, argv):
   if not left and right:
     left = 'HEAD'
 
-  diffcmd = 'git --no-pager diff'
+  diffcmds = ['git', '--no-pager', 'diff']
 
   if left or right:
-    diffcmd += ' '
-    if left:
-      diffcmd += left
     if delimiter:
-      diffcmd += delimiter
+      diffcmds.append(''.join([left if left else '',
+                               delimiter,
+                               right if right else '',]))
     else:
-      diffcmd += ' '
-    if right:
-      diffcmd += right
-  if files:
-    diffcmd += ' -- ' + ' '.join(files)
+      if left:
+        diffcmds.append(left)
+      if right:
+        diffcmds.append(right)
 
-  rc, output = commands.getstatusoutput(diffcmd)
+  if files:
+    diffcmds.append('--')
+    diffcmds.extend(files)
+
+  # TODO: quote shell args
+  rc, output = commands.getstatusoutput(' '.join(diffcmds))
   if rc != 0:
     return None, output
 
@@ -306,13 +309,14 @@ def hg_diff(root, argv):
     if error:
       return None, error
 
-  diffcmd = 'hg diff --nodates --git'
+  diffcmds = ['hg', 'diff', '--nodates', '--git']
   for revision in params.revision:
-    diffcmd += ' --rev=' + revision
+    diffcmds.append('--rev=' + revision)
 
-  diffcmd += ' ' + ' '.join(args)
-    
-  rc, output = commands.getstatusoutput(diffcmd)
+  diffcmds.extend(args)
+
+  # TODO: quote shell args
+  rc, output = commands.getstatusoutput(' '.join(diffcmds))
   if rc != 0:
     return None, output
   split = SplitMercurialDiff('hg', splitOutput(output))
