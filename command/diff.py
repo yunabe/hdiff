@@ -33,23 +33,6 @@ def fillTemplate(template, params):
   return template
 
 
-def filterNewLine(lines):
-  result = []
-  for line in lines:
-    result.append(line.rstrip('\r\n'))
-  return result
-
-def getDiffLines(base, live):
-  """Runs diff and returns lines of output.
-
-  The result is equivalent to pathch.lines in rietvelt.
-  """
-  rc, output = commands.getstatusoutput('diff -u "%s" "%s"' % (base, live))
-  if rc != 256:
-    return None, output
-  return filterNewLine(output.split('\n')), None
-
-
 def createHtmlDiffFromBaseAndDiff(base_lines, diff_lines):
   chunks = patching.ParsePatchToChunks(diff_lines)
   column_width = 80
@@ -70,29 +53,3 @@ def createHtmlDiffFromBaseAndDiff(base_lines, diff_lines):
 
   template = file(TEMPLATE_FILE).read()
   return fillTemplate(template, params), None
-
-
-def createHtmlDiff(base, live):
-  diff_lines, err = getDiffLines(base, live)
-  if err:
-    return None, err
-  old_lines = filterNewLine(file(base).readlines())
-  new_lines_len = len(file(live).readlines())
-  return createHtmlDiffFromBaseAndDiff(old_lines, diff_lines)
-
-
-def main():
-  if len(sys.argv) != 3:
-    print 'Usage python diff.py file0 file1'
-    sys.exit(1)
-
-  html, err = createHtmlDiff(sys.argv[1], sys.argv[2])
-  if err:
-    print >> sys.stderr, err
-    sys.exit(1)
-  else:
-    print html
-
-
-if __name__ == '__main__':
-  main()

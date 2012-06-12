@@ -116,18 +116,6 @@ def GetMercurialRootDirectory():
     return output, None
 
 
-def RunMercurialDiff(args):
-  rc, output = commands.getstatusoutput(' '.join(
-      ['hg',
-       'diff',
-       ] + args))
-  if rc != 0:
-    return None, output
-  else:
-    return filter(lambda s: len(s) > 0,
-                  map(lambda s: s.rstrip('\r'), output.split('\n'))), None
-
-
 def SplitMercurialDiff(mode, inputs):
   if len(inputs) == 0:
     return []
