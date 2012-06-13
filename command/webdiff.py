@@ -7,6 +7,7 @@ import re
 import socket
 import threading
 import StringIO
+import subprocess
 import sys
 import urllib
 import urlparse
@@ -46,6 +47,13 @@ class DiffData(object):
     self.left_rev = left_rev
     self.split = split
     self.catcmd_factory = catcmd_factory
+
+
+def getstatusoutput_with_args(args):
+  proc = subprocess.Popen(
+    args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+  out, _ = proc.communicate()
+  return proc.wait(), out
 
 
 def splitOutput(output):
@@ -222,7 +230,7 @@ def git_diff(root, argv):
     diffcmds.extend(files)
 
   # TODO: quote shell args
-  rc, output = commands.getstatusoutput(' '.join(diffcmds))
+  rc, output = getstatusoutput_with_args(diffcmds)
   if rc != 0:
     return None, output
 
@@ -234,7 +242,7 @@ def git_diff(root, argv):
 
 
 def create_gitshow(root, left_rev, left_file):
-  return 'git show %s:%s' % (left_rev if left_rev else '', left_file)
+  return ['git', 'show', '%s:%s' % (left_rev if left_rev else '', left_file)]
 
 
 def GetHgParents():
@@ -316,7 +324,7 @@ def hg_diff(root, argv):
   diffcmds.extend(args)
 
   # TODO: quote shell args
-  rc, output = commands.getstatusoutput(' '.join(diffcmds))
+  rc, output = getstatusoutput_with_args(diffcmds)
   if rc != 0:
     return None, output
   split = SplitMercurialDiff('hg', splitOutput(output))
@@ -324,8 +332,8 @@ def hg_diff(root, argv):
 
 
 def create_hgcat(root, left_rev, left_file):
-  return 'hg cat -r %s "%s"' % (left_rev,
-                                os.path.join(root, left_file))
+  return ['hg', 'cat', '-r', left_rev, os.path.join(root, left_file)]
+
 
 def diff_diff(root, argv):
   diffcmd = 'diff -u ' + ' '.join(argv)
@@ -350,7 +358,7 @@ def createFileDiffHtml(mode, diff_data, filename):
     if left_file:
       catcmd = diff_data.catcmd_factory(
         diff_data.root, diff_data.left_rev, left_file)
-      rc, output = commands.getstatusoutput(catcmd)
+      rc, output = getstatusoutput_with_args(catcmd)
       if rc != 0:
         raise Exception, 'Failed to run "%s": %s' % (catcmd, output)
       base_lines = splitOutput(output)
