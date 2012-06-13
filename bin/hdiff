@@ -12,5 +12,5 @@ if path:
 os.environ['PYTHONPATH'] = path + root
 os.execlp('python',
           'python',
-          os.path.join(dir, 'webdiff.py'),
+          os.path.join(dir, '../command/webdiff.py'),
           *sys.argv[1:])
