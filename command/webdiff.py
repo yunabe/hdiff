@@ -16,23 +16,22 @@ from wsgiref.simple_server import make_server
 from codereview.engine import RenderUnifiedTableRows
 from codereview.patching import ParsePatchToLines
 from command.diff import createHtmlDiffFromBaseAndDiff
+from command.static_handler import StaticHandler
 
-STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__),
-                               '../static/styles.css')
+APPID = 'xv3fo8'
+STATIC_DIR_PATH = os.path.join(os.path.dirname(__file__), '../static')
 
 kListPageTemplate = '''
 <html>
 <meta http-equiv="Content-Style-Type" content="text/css">
-<style type="text/css">
-%s
-</style>
+<link href="/shared/{appid}/styles.css" rel="stylesheet">
 <body>
   <div style="display: table;margin-left:auto;margin-right:auto;">
     %s
   </div>
 </body>
 </html>
-'''
+'''.replace('{appid}', APPID)
 
 kListTemplate = '''
 <div class="code" style="margin-top: 1.3em; display: table;">
@@ -113,7 +112,7 @@ def CreateFileListPageHtmlFromDiffs(diffs, filenames):
     w.write(kListTemplate % (link_url,
                              cgi.escape(filenames[i]),
                              '\n'.join(rows)))
-  return kListPageTemplate % (file(STYLES_CSS_FILE).read(), w.getvalue())
+  return kListPageTemplate % w.getvalue()
 
 
 def GetMercurialRootDirectory():
@@ -365,7 +364,7 @@ def createFileDiffHtml(mode, diff_data, filename):
     else:
       base_lines = []
     
-    html, err = createHtmlDiffFromBaseAndDiff(base_lines, lines)
+    html, err = createHtmlDiffFromBaseAndDiff(APPID, base_lines, lines)
     if err:
       return 'Failed to create html diff: %s' % err
     else:
@@ -388,8 +387,12 @@ class WebDiffHandler(object):
     self.argv = argv
     self.mode = mode
     self.root = root
+    self.shared_handler = StaticHandler(STATIC_DIR_PATH)
 
   def __call__(self, environ, start_response):
+    if environ['PATH_INFO'].startswith('/shared/'):
+      return self.shared_handler(environ['PATH_INFO'][len('/shared/'):],
+                                 start_response)
     if self.mode == 'git':
       diff_data, error = git_diff(self.root, self.argv)
     elif self.mode == 'hg':
@@ -424,7 +427,8 @@ def SendProxyRequest(command_port, addr):
   sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
   sock.connect(('localhost', command_port))
   req = json.dumps({'host': addr,
-                    'openurl': '/'})
+                    'openurl': '/',
+                    'clientid': APPID})
   sock.send(req)
   try:
     sock.recv(4096)

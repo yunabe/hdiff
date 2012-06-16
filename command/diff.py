@@ -9,23 +9,6 @@ from codereview import patching
 
 TEMPLATE_FILE = os.path.join(os.path.dirname(__file__),
                              '../template/diff.html')
-SCRIPT_JS_FILE = os.path.join(os.path.dirname(__file__),
-                              '../static/script.js')
-STYLES_CSS_FILE = os.path.join(os.path.dirname(__file__),
-                               '../static/styles.css')
-
-INLINE_SCRIPT = """
-<script type="text/javascript">
-<!--
-%s
-// -->
-</script>""".strip()
-
-INLINE_CSS = """
-<style type="text/css">
-%s
-</style>""".strip()
-
 
 def fillTemplate(template, params):
   for key in params:
@@ -33,7 +16,7 @@ def fillTemplate(template, params):
   return template
 
 
-def createHtmlDiffFromBaseAndDiff(base_lines, diff_lines):
+def createHtmlDiffFromBaseAndDiff(appid, base_lines, diff_lines):
   chunks = patching.ParsePatchToChunks(diff_lines)
   column_width = 80
   # Makes context big to avoid collapsing unchanged parts.
@@ -47,8 +30,7 @@ def createHtmlDiffFromBaseAndDiff(base_lines, diff_lines):
 
   params = {
     'rows': '\n'.join(rows),
-    'script.js': INLINE_SCRIPT % file(SCRIPT_JS_FILE).read(),
-    'styles.css': INLINE_CSS % file(STYLES_CSS_FILE).read(),
+    'appid': appid,
   }
 
   template = file(TEMPLATE_FILE).read()
