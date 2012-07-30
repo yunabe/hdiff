@@ -344,8 +344,7 @@ def diff_diff(root, argv):
 
 
 def create_cat(root, left_rev, left_file):
-  print 'left_file', `left_file`
-  return 'cat "%s"' % os.path.join(root, left_file)
+  return ('cat', os.path.join(root, left_file))
 
 
 def createFileDiffHtml(mode, diff_data, filename):
