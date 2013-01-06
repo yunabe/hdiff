@@ -106,11 +106,18 @@ def MaybeParseGitRevision(s):
 def CreateFileListPageHtmlFromDiffs(diffs, filenames):
   w = StringIO.StringIO()
   for i, diff in enumerate(diffs):
-    link_url = '?' + urllib.urlencode({'file': filenames[i]})
     parsed_lines = ParsePatchToLines(diff)
     rows = RenderUnifiedTableRows(None, parsed_lines)
+    if filenames[i] is None:
+      # TODO: Show the original file name too.
+      filename = '<deleted>'
+      # TODO: Make the link unclickable.
+      link_url = ''
+    else:
+      filename = filenames[i]
+      link_url = '?' + urllib.urlencode({'file': filenames[i]})
     w.write(kListTemplate % (link_url,
-                             cgi.escape(filenames[i]),
+                             cgi.escape(filename),
                              '\n'.join(rows)))
   return kListPageTemplate % w.getvalue()
 
